@@ -1,9 +1,9 @@
 import 'dart:io';
-
+// pdf model
 class PdfFile {
   final FileSystemEntity file;
   final String name;
-  final int size; // in bytes
+  final int size;
   final DateTime lastModified;
 
   PdfFile({
