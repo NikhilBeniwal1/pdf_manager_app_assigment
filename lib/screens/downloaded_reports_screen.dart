@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
+import 'package:pdf_manager_app/screens/pdf_viewer_screen.dart';
 import 'package:pdf_manager_app/services/pdf_download_service.dart';
 import '../models/pdf_file_model.dart';
 import '../widgets/pdf_list_item.dart';
@@ -38,15 +39,21 @@ class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
   }
 
   // Handle tap on a PDF file item
+
   void _onFileTap(PdfFile file) {
     if (selectedFiles.isNotEmpty) {
-      // If selection mode is active, treat tap as toggle selection
       _onLongPress(file);
     } else {
-      // Otherwise, open the file using system viewer
-      OpenFile.open(file.file.path);
+      // OpenFile.open(file.file.path);  // we can use this line of code to open pdf in other pdf viewer apps
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PdfViewerScreen(path: file.file.path),
+        ),
+      );
     }
   }
+
 
   // Show confirmation dialog and delete selected files
   void _onDeleteSelected() async {
@@ -54,7 +61,7 @@ class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text("Delete Selected"),
-        content: Text("Are you sure you want to delete ${selectedFiles.length} file(s)?"),
+        content: Text("Are you sure you want to delete ${selectedFiles.length} ${selectedFiles.length==1 ? "file":"files"} ?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -72,6 +79,15 @@ class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
       // Delete the selected files
       await FileService.deleteFiles(selectedFiles.map((e) => e.file).toList());
       _loadFiles(); // Refresh file list after deletion
+
+      // ✅ Show Snackbar after deletion
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("${selectedFiles.length} ${selectedFiles.length==1 ? "file":"files"} deleted successfully."),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
     }
   }
 
@@ -134,7 +150,7 @@ class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
           final filename = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
           // Download and save PDF
-          await FileService.downloadPdf(url, filename);
+          var file = await FileService.downloadPdf(url, filename,context);
           await _loadFiles(); // Refresh list with new file
           setState(() => isLoading = false); // End loading state
         },

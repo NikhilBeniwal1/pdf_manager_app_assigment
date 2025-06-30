@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 
@@ -12,12 +13,13 @@ class FileService {
   }
 
   // Downloads a PDF from the given URL and saves it with the specified file name
-  static Future<File> downloadPdf(String url, String fileName) async {
+  static Future<File> downloadPdf(String url, String fileName,context) async {
     final path = await getLocalPath();
     final file = File('$path/$fileName');
 
     // If file already exists, return it directly
     if (await file.exists()) return file;
+
 
     // Download the file and save it
     await Dio().download(url, file.path);
