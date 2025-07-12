@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "102821819598",
+    "project_id": "pdf-manager-assignment",
+    "storage_bucket": "pdf-manager-assignment.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:102821819598:android:7380b0f77e46b1e8220c9f",
+        "android_client_info": {
+          "package_name": "com.pdf_manager_app.pdf_manager_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2z1Pyg6CJY4kX1IRwISDyy05Izp30puE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
