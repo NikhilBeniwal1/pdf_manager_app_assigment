@@ -1,50 +1,44 @@
 import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:open_file/open_file.dart';
 import 'package:pdf_manager_app/screens/pdf_viewer_screen.dart';
 import 'package:pdf_manager_app/services/pdf_download_service.dart';
 import '../models/pdf_file_model.dart';
 import '../widgets/pdf_list_item.dart';
+import 'package:file_picker/file_picker.dart';
 
-// Screen to display and manage downloaded PDF reports
 class DownloadedReportsScreen extends StatefulWidget {
   @override
   State<DownloadedReportsScreen> createState() => _DownloadedReportsScreenState();
 }
 
-class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
-  // List to hold all downloaded PDF files
+class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> with TickerProviderStateMixin {
   List<PdfFile> pdfFiles = [];
-
-  // List to keep track of selected files for deletion
+  List<PdfFile> imageFiles = [];
   List<PdfFile> selectedFiles = [];
-
-  // Flag to show download loading state
   bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadFiles(); // Load files when screen is initialized
+    _loadFiles();
   }
 
-  // Load all downloaded PDF files from storage
   Future<void> _loadFiles() async {
     final entities = await FileService.listDownloadedFiles();
+
     final files = await Future.wait(entities.map(PdfFile.fromFileSystemEntity));
     setState(() {
-      pdfFiles = files;
-      selectedFiles.clear(); // Clear selection when refreshing list
+      pdfFiles = files.where((f) => f.name.endsWith(".pdf")).toList();
+      imageFiles = files.where((f) => f.name.endsWith(".png") || f.name.endsWith(".jpg") || f.name.endsWith(".jpeg")).toList();
+      selectedFiles.clear();
     });
   }
-
-  // Handle tap on a PDF file item
 
   void _onFileTap(PdfFile file) {
     if (selectedFiles.isNotEmpty) {
       _onLongPress(file);
     } else {
-      // OpenFile.open(file.file.path);  // we can use this line of code to open pdf in other pdf viewer apps
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -54,14 +48,12 @@ class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
     }
   }
 
-
-  // Show confirmation dialog and delete selected files
   void _onDeleteSelected() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text("Delete Selected"),
-        content: Text("Are you sure you want to delete ${selectedFiles.length} ${selectedFiles.length==1 ? "file":"files"} ?"),
+        content: Text("Are you sure you want to delete ${selectedFiles.length} ${selectedFiles.length == 1 ? "file" : "files"}?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -76,85 +68,161 @@ class _DownloadedReportsScreenState extends State<DownloadedReportsScreen> {
     );
 
     if (confirm == true) {
-      // Delete the selected files
       await FileService.deleteFiles(selectedFiles.map((e) => e.file).toList());
-      _loadFiles(); // Refresh file list after deletion
-
-      // ✅ Show Snackbar after deletion
+      await _loadFiles();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("${selectedFiles.length} ${selectedFiles.length==1 ? "file":"files"} deleted successfully."),
+          content: Text("${selectedFiles.length} ${selectedFiles.length == 1 ? "file" : "files"} deleted successfully."),
           duration: Duration(seconds: 2),
         ),
       );
-
     }
   }
 
-  // Handle long press to select or deselect a file
   void _onLongPress(PdfFile file) {
     setState(() {
       if (selectedFiles.contains(file)) {
-        selectedFiles.remove(file); // Deselect if already selected
+        selectedFiles.remove(file);
       } else {
-        selectedFiles.add(file); // Add to selection
+        selectedFiles.add(file);
       }
     });
   }
 
-  // Check if a given file is currently selected
   bool isSelected(PdfFile file) => selectedFiles.contains(file);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Downloaded Reports"),
-        actions: selectedFiles.isNotEmpty
-            ? [
-          // Show delete icon only when files are selected
-          IconButton(
-            icon: Icon(Icons.delete),
-            onPressed: _onDeleteSelected,
-          )
-        ]
-            : [],
-      ),
-      body: pdfFiles.isEmpty
-          ? Center(child: Text("No downloaded reports")) // Show message if no files
-          : ListView.builder(
-        itemCount: pdfFiles.length,
-        itemBuilder: (_, index) {
-          final pdf = pdfFiles[index];
-          return PdfListItem(
-            pdf: pdf,
-            isSelected: isSelected(pdf),
-            onTap: () => _onFileTap(pdf),
-            onLongPress: () => _onLongPress(pdf),
-          );
-        },
-      ),
-      floatingActionButton: isLoading
-          ? FloatingActionButton(
-        onPressed: () {}, // Disabled button during download
-        backgroundColor: Colors.grey,
-        child: CircularProgressIndicator(
-          color: Colors.white,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text("Downloaded Files"),
+          bottom: TabBar(
+            tabs: [
+              Tab(text: "PDFs"),
+              Tab(text: "Images"),
+            ],
+          ),
+          actions: selectedFiles.isNotEmpty
+              ? [
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: _onDeleteSelected,
+            )
+          ]
+              : [],
         ),
-      )
-          : FloatingActionButton(
-        child: Icon(Icons.download),
-        onPressed: () async {
-          setState(() => isLoading = true); // Start loading state
-          final url = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
-          final filename = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
-          // Download and save PDF
-          var file = await FileService.downloadPdf(url, filename,context);
-          await _loadFiles(); // Refresh list with new file
-          setState(() => isLoading = false); // End loading state
-        },
+        body: Column(
+          children: [
+            Expanded(child: TabBarView(
+              children: [
+                buildListView(pdfFiles),
+                buildListView(imageFiles),
+              ],
+            )),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _pickAndUploadImage,
+                    icon: Icon(Icons.image),
+                    label: Text('Upload Image'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _pickAndUploadPdf,
+                    icon: Icon(Icons.picture_as_pdf),
+                    label: Text('Upload PDF'),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 70,),
+          ],
+        ),
+          floatingActionButton: isLoading
+            ? FloatingActionButton(
+          onPressed: () {},
+          backgroundColor: Colors.grey,
+          child: CircularProgressIndicator(color: Colors.white),
+        )
+            : FloatingActionButton(
+          child: Icon(Icons.download),
+          onPressed: () async {
+            setState(() => isLoading = true);
+            final url = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+            final filename = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+            await FileService.downloadPdf(url, filename, context);
+            await _loadFiles();
+            setState(() => isLoading = false);
+          },
+        ),
       ),
     );
   }
+
+  Widget buildListView(List<PdfFile> files) {
+    if (files.isEmpty) {
+      return Center(child: Text("No files found"));
+    }
+    return ListView.builder(
+      itemCount: files.length,
+      itemBuilder: (_, index) {
+        final file = files[index];
+        return PdfListItem(
+          pdf: file,
+          isSelected: isSelected(file),
+          onTap: () => _onFileTap(file),
+          onLongPress: () => _onLongPress(file),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+      final fileName = result.files.single.name;
+      final ref = FirebaseStorage.instance.ref().child('images/$fileName');
+
+      await ref.putFile(File(path));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image uploaded')));
+    }
+  }
+
+  Future<void> _pickAndUploadPdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+      final fileName = result.files.single.name;
+      final ref = FirebaseStorage.instance.ref().child('pdfs/$fileName');
+
+      await ref.putFile(File(path));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF uploaded')));
+    }
+  }
+
+
+
+
 }
+
+
+/// loading indicator of train
+/*
+VandeBharatLottieLoader(
+width: 100,
+height: 100,
+);*/
